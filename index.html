@@ -2,270 +2,125 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>ENSIO - Dashboard Expert</title>
-    <link rel="manifest" href="manifest.json">
-    <link rel="manifest" href="manifest.json">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ensio App - Cloud</title>
+    <!-- On importe Supabase -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
-    <style>
-        :root { --bg-dark: #111827; --card-dark: #1f2937; }
-        body { background-color: var(--bg-dark); color: #f3f4f6; font-family: system-ui, sans-serif; margin: 0; padding-bottom: 95px; }
-        .card { background: var(--card-dark); border: 1px solid #374151; border-radius: 1rem; padding: 1rem; }
-        
-        .stats-container { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
-        .stats-card { flex: 1; min-width: 130px; background: #1f2937; border-bottom: 4px solid #3b82f6; padding: 10px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
-        
-        input, select { background: #374151 !important; border: 1px solid #4b5563 !important; color: white !important; width: 100%; padding: 0.75rem; border-radius: 0.5rem; font-size: 14px; }
-        
-        /* Navigation basse plus grosse */
-        .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; background: #111827; border-top: 1px solid #374151; display: flex; justify-content: space-around; padding: 0.8rem 0; z-index: 50; }
-        .nav-item { display: flex; flex-direction: column; align-items: center; font-size: 0.85rem; color: #9ca3af; text-decoration: none; cursor: pointer; flex: 1; }
-        .nav-item span { font-size: 1.6rem; margin-bottom: 2px; }
-        .nav-item.active { color: #60a5fa; font-weight: bold; }
-    </style>
 </head>
-<body>
+<body class="bg-gray-100 p-4">
 
-    <div id="app"></div>
+    <div class="max-w-md mx-auto bg-white p-6 rounded-xl shadow-lg">
+        <h1 class="text-2xl font-bold text-center text-blue-600 mb-6">Ensio - Suivi de Chantier</h1>
+
+        <!-- Formulaire -->
+        <div class="space-y-4">
+            <div>
+                <label class="block text-sm font-medium">Technicien</label>
+                <input type="text" id="nom" class="w-full p-2 border rounded" placeholder="Ton nom">
+            </div>
+            <div>
+                <label class="block text-sm font-medium">Type de Câble</label>
+                <select id="cable" class="w-full p-2 border rounded">
+                    <option value="Fibre Optique">Fibre Optique</option>
+                    <option value="Cuivre">Cuivre</option>
+                    <option value="Alimentation">Alimentation</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-sm font-medium">Longueur (mètres)</label>
+                <input type="number" id="longueur" class="w-full p-2 border rounded" placeholder="0">
+            </div>
+            <button onclick="ajouterMesure()" id="btnAjouter" class="w-full bg-blue-600 text-white py-2 rounded font-bold hover:bg-blue-700">
+                Enregistrer sur le Cloud
+            </button>
+        </div>
+
+        <hr class="my-6">
+
+        <!-- Liste des mesures -->
+        <h2 class="font-bold mb-2">Dernières données (Tous utilisateurs)</h2>
+        <div id="liste" class="space-y-2">
+            <p class="text-gray-500 text-center">Chargement des données...</p>
+        </div>
+    </div>
 
     <script>
-        class CableApp {
-            constructor() {
-                this.userName = localStorage.getItem('userName') || '';
-                if (!this.userName) this.askName();
-                this.dbKey = `cables_db_${this.userName.replace(/\s+/g, '_').toLowerCase()}`;
-                this.view = 'home';
-                this.operations = this.loadData();
-                this.cableTypes = ['88', '89', '90', '98', '99', '74', '288'];
-                this.cableCapacities = ['4p', '8p', '14p', '28p', '56p', '112p', '224p', '448p', '896p'];
-                this.cableCalibers = ['4', '5', '6', '8'];
-                this.render();
+        // CONFIGURATION SUPABASE (À REMPLIR)
+        const SUPABASE_URL = sb_publishable_DVA3zG3jfVwR5CGexSu6kg_u8CJ9c9t;
+        const SUPABASE_KEY = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNpaXh6bHJtbXR6dHR0emdlamJnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg0NzY1OTcsImV4cCI6MjA4NDA1MjU5N30.CAs3TW4OTVXRImSAr3nCg4xxXf6mD0dENS3DwJm-joo;
+        
+        const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        // Envoyer une donnée
+        async function ajouterMesure() {
+            const nom = document.getElementById('nom').value;
+            const cable = document.getElementById('cable').value;
+            const longueur = document.getElementById('longueur').value;
+            const btn = document.getElementById('btnAjouter');
+
+            if(!nom || !longueur) {
+                alert("Remplis tous les champs !");
+                return;
             }
 
-            loadData() { return JSON.parse(localStorage.getItem(this.dbKey) || '[]'); }
-            saveData() { localStorage.setItem(this.dbKey, JSON.stringify(this.operations)); this.render(); }
+            btn.disabled = true;
+            btn.innerText = "Envoi en cours...";
 
-            getStats() {
-                const now = new Date();
-                const m = now.getMonth();
-                const y = now.getFullYear();
-                const opsMois = this.operations.filter(op => {
-                    const [d, mon, yr] = op.date.split('/');
-                    return (parseInt(mon) - 1) === m && parseInt(yr) === y;
-                });
+            const { error } = await supabase
+                .from('metrages')
+                .insert([{ 
+                    nom_utilisateur: nom, 
+                    type_cable: cable, 
+                    longueur: parseFloat(longueur) 
+                }]);
 
-                const sortiMois = opsMois.filter(o => o.type === 'sortie').reduce((acc, o) => acc + parseFloat(o.metrage || 0), 0);
-                const renduMois = opsMois.filter(o => o.type === 'retour').reduce((acc, o) => acc + parseFloat(o.metrage || 0), 0);
-                const sorties = this.operations.filter(o => o.type === 'sortie');
-                const retours = this.operations.filter(o => o.type === 'retour');
-                const opEnAttente = sorties.filter(s => !retours.some(r => r.op === s.op)).length;
-
-                let anomalies = 0;
-                const uniqueOpsMois = [...new Set(opsMois.map(o => o.op))];
-                uniqueOpsMois.forEach(opNum => {
-                    const sTot = opsMois.filter(o => o.op === opNum && o.type === 'sortie').reduce((a, b) => a + b.metrage, 0);
-                    const rTot = opsMois.filter(o => o.op === opNum && o.type === 'retour').reduce((a, b) => a + b.metrage, 0);
-                    if (sTot > 0 && rTot > 0 && Math.abs(sTot - rTot) > 15) anomalies++;
-                });
-
-                return { sortiMois, renduMois, ecartMois: sortiMois - renduMois, opEnAttente, anomalies };
+            if (error) {
+                alert("Erreur : " + error.message);
+            } else {
+                document.getElementById('longueur').value = "";
+                chargerDonnees(); // Rafraîchir la liste
             }
-
-            render() {
-                const container = document.getElementById('app');
-                const stats = this.getStats();
-                const labelMois = new Intl.DateTimeFormat('fr-FR', { month: 'long' }).format(new Date());
-                
-                container.innerHTML = `
-                    <header class="p-4 bg-slate-900 border-b border-gray-800 flex justify-between items-center sticky top-0 z-40">
-                        <div>
-                            <h1 class="font-black text-blue-500 text-xl tracking-tighter">ENSIO</h1>
-                            <p class="text-[10px] text-gray-400 font-bold uppercase">${labelMois} ${new Date().getFullYear()}</p>
-                        </div>
-                        <div class="flex gap-2">
-                            <button onclick="app.exportToExcel()" class="bg-emerald-600 px-3 py-2 rounded-lg text-[10px] font-bold">XLS</button>
-                            <button onclick="app.logout()" class="bg-gray-700 px-2 py-2 rounded-lg text-sm">👤</button>
-                        </div>
-                    </header>
-                    <main class="p-4">
-                        <div class="stats-container">
-                            <div class="stats-card border-blue-500">
-                                <p class="text-[9px] text-blue-400 font-bold uppercase">Sorti</p>
-                                <p class="text-xl font-black">${stats.sortiMois}m</p>
-                            </div>
-                            <div class="stats-card border-emerald-500">
-                                <p class="text-[9px] text-emerald-400 font-bold uppercase">Déposé</p>
-                                <p class="text-xl font-black">${stats.renduMois}m</p>
-                            </div>
-                            <div class="stats-card border-orange-500">
-                                <p class="text-[9px] text-orange-400 font-bold uppercase">Écart</p>
-                                <p class="text-xl font-black">${stats.ecartMois.toFixed(1)}m</p>
-                            </div>
-                            <div class="stats-card border-purple-500">
-                                <p class="text-[9px] text-purple-400 font-bold uppercase">Attente</p>
-                                <p class="text-xl font-black">${stats.opEnAttente}</p>
-                            </div>
-                            <div class="stats-card ${stats.anomalies > 0 ? 'border-red-500 bg-red-900/10' : 'border-gray-600'}">
-                                <p class="text-[9px] ${stats.anomalies > 0 ? 'text-red-400' : 'text-gray-500'} font-bold uppercase">Anomalie</p>
-                                <p class="text-xl font-black ${stats.anomalies > 0 ? 'text-red-500' : 'text-gray-500'}">${stats.anomalies}</p>
-                            </div>
-                        </div>
-                        ${this.renderView()}
-                    </main>
-                    <nav class="bottom-nav">
-                        <div onclick="app.view='home'; app.render()" class="nav-item ${this.view === 'home' ? 'active' : ''}"><span>🏠</span>Accueil</div>
-                        <div onclick="app.view='sortie'; app.render()" class="nav-item ${this.view === 'sortie' ? 'active' : ''}"><span>📤</span>Sortie</div>
-                        <div onclick="app.view='retour'; app.render()" class="nav-item ${this.view === 'retour' ? 'active' : ''}"><span>📥</span>Retour</div>
-                        <div onclick="app.view='historique'; app.render()" class="nav-item ${this.view === 'historique' ? 'active' : ''}"><span>📋</span>Historique</div>
-                    </nav>
-                `;
-            }
-
-            renderView() {
-                if (this.view === 'home') {
-                    return `
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                            <button onclick="app.view='sortie'; app.render()" class="bg-blue-600 p-10 rounded-2xl font-black text-xl shadow-lg">📤 SORTIE</button>
-                            <button onclick="app.view='retour'; app.render()" class="bg-emerald-600 p-10 rounded-2xl font-black text-xl shadow-lg">📥 RETOUR</button>
-                        </div>
-                    `;
-                }
-                
-                if (this.view === 'sortie' || this.view === 'retour') {
-                    const sortiesDispo = this.operations.filter(o => o.type === 'sortie');
-                    return `
-                        <div class="card max-w-xl mx-auto border-t-4 ${this.view === 'sortie' ? 'border-t-blue-500' : 'border-t-emerald-500'}">
-                            <h2 class="text-xl font-black mb-6 text-center">${this.view === 'sortie' ? 'BON DE SORTIE' : 'BON DE RETOUR'}</h2>
-                            <form onsubmit="app.handleSubmit(event, '${this.view}')" class="space-y-4">
-                                ${this.view === 'retour' ? `
-                                    <div class="bg-gray-900/50 p-3 rounded-lg border border-gray-700">
-                                        <label class="text-[10px] font-bold text-emerald-400">LIER À UNE OPERATION</label>
-                                        <select name="linkSortie" onchange="app.preFill(this.value)" class="mt-1">
-                                            <option value="">-- Sélectionner l'OPERATION --</option>
-                                            ${sortiesDispo.map(s => `<option value="${s.id}">${s.op} (${s.date})</option>`).join('')}
-                                        </select>
-                                    </div>
-                                ` : ''}
-                                <div class="grid grid-cols-2 gap-3">
-                                    <div><label class="text-[10px] text-gray-400 font-bold">TECH</label><input type="text" name="technicien" id="tech" value="${this.userName}" required></div>
-                                    <div><label class="text-[10px] text-gray-400 font-bold">N° OP</label><input type="text" name="op" id="op" required></div>
-                                </div>
-                                <div class="grid grid-cols-3 gap-2">
-                                    <div><label class="text-[10px] text-gray-400">TYPE</label><select name="cableType" id="type">${this.cableTypes.map(t => `<option value="${t}">${t}</option>`).join('')}</select></div>
-                                    <div><label class="text-[10px] text-gray-400">CAPA</label><select name="capacite" id="calibre">${this.cableCapacities.map(c => `<option value="${c}">${c}</option>`).join('')}</select></div>
-                                    <div><label class="text-[10px] text-gray-400">CAL</label><select name="calibre" id="cal">${this.cableCalibers.map(cl => `<option value="${cl}">${cl}</option>`).join('')}</select></div>
-                                </div>
-                                <div><label class="text-[10px] text-gray-400 font-bold">MÉTRAGE (m)</label><input type="number" name="metrage" step="0.1" required></div>
-                                ${this.view === 'retour' ? `
-                                    <label class="flex items-center p-3 bg-red-900/10 border border-red-900/40 rounded-lg">
-                                        <input type="checkbox" name="isStolen" class="w-auto scale-125">
-                                        <span class="text-red-500 font-bold text-sm ml-3 text-sm">VOL OU PERTE TOTAL</span>
-                                    </label>
-                                ` : ''}
-                                <button class="w-full ${this.view === 'sortie' ? 'bg-blue-600' : 'bg-emerald-600'} py-4 rounded-xl font-black text-lg mt-4 shadow-xl">ENREGISTRER</button>
-                                <button type="button" onclick="app.view='home'; app.render()" class="w-full text-gray-500 font-bold text-sm">ANNULER</button>
-                            </form>
-                        </div>`;
-                }
-
-                if (this.view === 'historique') {
-                    const mappedOps = {};
-                    this.operations.forEach(op => {
-                        if (!mappedOps[op.op]) mappedOps[op.op] = { s: null, r: null };
-                        if (op.type === 'sortie') mappedOps[op.op].s = op;
-                        if (op.type === 'retour') mappedOps[op.op].r = op;
-                    });
-                    const opsList = Object.keys(mappedOps).reverse();
-
-                    return `
-                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                        ${opsList.map(opNum => {
-                            const {s, r} = mappedOps[opNum];
-                            const isStolen = r && r.isStolen;
-                            const diff = (s && r) ? (s.metrage - r.metrage).toFixed(1) : (isStolen ? s.metrage : '--');
-                            const isAnomalie = (s && r && !isStolen && Math.abs(s.metrage - r.metrage) > 15);
-
-                            return `
-                                <div class="card border-l-4 ${isStolen ? 'border-l-red-600' : (r ? 'border-l-emerald-500' : 'border-l-blue-500')}">
-                                    <div class="flex justify-between items-start mb-2 underline underline-offset-4 decoration-gray-700">
-                                        <span class="font-black text-blue-400">OP ${opNum}</span>
-                                        <span class="text-[10px] text-gray-500">${s ? s.date : (r?r.date:'')}</span>
-                                    </div>
-                                    <div class="grid grid-cols-2 gap-4 my-3 text-center">
-                                        <div class="bg-gray-900/30 p-2 rounded">
-                                            <p class="text-[8px] text-blue-400 font-bold uppercase">Sortie</p>
-                                            <p class="font-black text-lg">${s ? s.metrage + 'm' : '--'}</p>
-                                        </div>
-                                        <div class="bg-gray-900/30 p-2 rounded">
-                                            <p class="text-[8px] text-emerald-400 font-bold uppercase">Retour</p>
-                                            <p class="font-black text-lg ${isStolen?'text-red-500':''}">${isStolen?'VOL':(r?r.metrage+'m':'--')}</p>
-                                        </div>
-                                    </div>
-                                    <div class="flex justify-between items-center pt-2 border-t border-gray-700">
-                                        <p class="text-[10px] font-bold text-gray-500 uppercase">Écart</p>
-                                        <p class="text-xl font-black ${isAnomalie?'text-red-500':''}">${diff}m ${isAnomalie?'⚠️':''}</p>
-                                    </div>
-                                    <div class="flex justify-between mt-3">
-                                        <span class="text-[9px] text-gray-500 uppercase">${s ? s.cableType + '/' + s.capacite : ''}</span>
-                                        <div class="flex gap-2">
-                                            ${s ? `<button onclick="app.deleteOp(${s.id})" class="text-[10px] text-gray-600">🗑️ S</button>` : ''}
-                                            ${r ? `<button onclick="app.deleteOp(${r.id})" class="text-[10px] text-gray-600">🗑️ R</button>` : ''}
-                                        </div>
-                                    </div>
-                                </div>
-                            `;
-                        }).join('')}
-                    </div>`;
-                }
-            }
-
-            preFill(id) {
-                const s = this.operations.find(o => o.id == id);
-                if (s) {
-                    document.getElementById('tech').value = s.technicien;
-                    document.getElementById('op').value = s.op;
-                    document.getElementById('type').value = s.cableType;
-                    document.getElementById('capacite').value = s.capacite;
-                    document.getElementById('calibre').value = s.calibre;
-                }
-            }
-
-            handleSubmit(e, type) {
-                e.preventDefault();
-                const fd = new FormData(e.target);
-                const isStolen = fd.get('isStolen') === 'on';
-                this.operations.push({
-                    id: Date.now(),
-                    type,
-                    technicien: fd.get('technicien'),
-                    op: fd.get('op'),
-                    cableType: fd.get('cableType'),
-                    capacite: fd.get('capacite'),
-                    calibre: fd.get('calibre'),
-                    metrage: isStolen ? 0 : parseFloat(fd.get('metrage')),
-                    isStolen,
-                    date: new Date().toLocaleDateString('fr-FR')
-                });
-                this.saveData();
-                this.view = 'historique';
-                this.render();
-            }
-
-            deleteOp(id) { if(confirm("Supprimer cette entrée ?")) { this.operations = this.operations.filter(o => o.id !== id); this.saveData(); } }
-            logout() { if(confirm("Déconnexion ?")) { localStorage.removeItem('userName'); location.reload(); } }
-            askName() { 
-                const n = prompt("Votre nom :"); 
-                if(n) { localStorage.setItem('userName', n); location.reload(); }
-            }
-            exportToExcel() {
-                const ws = XLSX.utils.json_to_sheet(this.operations);
-                const wb = XLSX.utils.book_new();
-                XLSX.utils.book_append_sheet(wb, ws, "Journal");
-                XLSX.writeFile(wb, `ENSIO_${this.userName}.xlsx`);
-            }
+            
+            btn.disabled = false;
+            btn.innerText = "Enregistrer sur le Cloud";
         }
-        const app = new CableApp();
+
+        // Charger les données depuis le cloud
+        async function chargerDonnees() {
+            const { data, error } = await supabase
+                .from('metrages')
+                .select('*')
+                .order('date', { ascending: false })
+                .limit(10);
+
+            if (error) {
+                console.error("Erreur chargement:", error);
+                return;
+            }
+
+            const listeDiv = document.getElementById('liste');
+            listeDiv.innerHTML = "";
+
+            data.forEach(item => {
+                const div = document.createElement('div');
+                div.className = "p-3 bg-gray-50 border-l-4 border-blue-500 rounded text-sm";
+                div.innerHTML = `
+                    <div class="flex justify-between font-bold">
+                        <span>${item.nom_utilisateur}</span>
+                        <span class="text-blue-600">${item.longueur}m</span>
+                    </div>
+                    <div class="flex justify-between text-gray-500 text-xs">
+                        <span>${item.type_cable}</span>
+                        <span>${new Date(item.date).toLocaleDateString()}</span>
+                    </div>
+                `;
+                listeDiv.appendChild(div);
+            });
+        }
+
+        // Charger au démarrage
+        chargerDonnees();
     </script>
 </body>
 </html>
